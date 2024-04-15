@@ -18,7 +18,7 @@ import numpy as np
 from collections import OrderedDict
 
 from batchgenerators.utilities.file_and_folder_operations import *
-#from meddec.paper_plot.nature_methods.challenge_visualization_stuff.own_implementation.ranking import \
+# from meddec.paper_plot.nature_methods.challenge_visualization_stuff.own_implementation.ranking import \
 #    rank_then_aggregate
 import scipy.stats as ss
 
@@ -28,6 +28,7 @@ from nnunet.paths import nnUNet_raw_data
 import SimpleITK as sitk
 import shutil
 from medpy.metric import dc, hd95
+from tqdm import tqdm
 
 from nnunet.postprocessing.consolidate_postprocessing import collect_cv_niftis
 from typing import Tuple
@@ -36,7 +37,7 @@ from typing import Tuple
 def copy_BraTS_segmentation_and_convert_labels(in_file, out_file):
     # use this for segmentation only!!!
     # nnUNet wants the labels to be continuous. BraTS is 0, 1, 2, 4 -> we make that into 0, 1, 2, 3
-    
+
     img = sitk.ReadImage(in_file)
     img_npy = sitk.GetArrayFromImage(img)
 
@@ -52,6 +53,7 @@ def copy_BraTS_segmentation_and_convert_labels(in_file, out_file):
     img_corr = sitk.GetImageFromArray(seg_new)
     img_corr.CopyInformation(img)
     sitk.WriteImage(img_corr, out_file)
+
 
 def apply_brats_threshold(fname, out_dir, threshold, replace_with):
     img_itk = sitk.ReadImage(fname)
@@ -101,14 +103,15 @@ def apply_threshold_to_folder(folder_in, folder_out, threshold, replace_with, pr
     niftis = subfiles(folder_in, suffix='.nii.gz', join=True)
 
     p = Pool(processes)
-    p.starmap(apply_brats_threshold, zip(niftis, [folder_out]*len(niftis), [threshold]*len(niftis), [replace_with] * len(niftis)))
+    p.starmap(apply_brats_threshold,
+              zip(niftis, [folder_out] * len(niftis), [threshold] * len(niftis), [replace_with] * len(niftis)))
 
     p.close()
     p.join()
 
 
 def determine_brats_postprocessing(folder_with_preds, folder_with_gt, postprocessed_output_dir, processes=8,
-        thresholds=(0, 10, 50, 100, 200, 500, 750, 1000, 1500, 2500, 10000), replace_with=2):
+                                   thresholds=(0, 10, 50, 100, 200, 500, 750, 1000, 1500, 2500, 10000), replace_with=2):
     # find pairs
     nifti_gt = subfiles(folder_with_gt, suffix=".nii.gz", sort=True)
 
@@ -116,7 +119,8 @@ def determine_brats_postprocessing(folder_with_preds, folder_with_gt, postproces
 
     nifti_pred = subfiles(folder_with_preds, suffix='.nii.gz', sort=True)
 
-    results = p.starmap_async(load_niftis_threshold_compute_dice, zip(nifti_gt, nifti_pred, [thresholds] * len(nifti_pred)))
+    results = p.starmap_async(load_niftis_threshold_compute_dice,
+                              zip(nifti_gt, nifti_pred, [thresholds] * len(nifti_pred)))
     results = results.get()
 
     all_dc_per_threshold = {}
@@ -130,15 +134,18 @@ def determine_brats_postprocessing(folder_with_preds, folder_with_gt, postproces
 
     maybe_mkdir_p(postprocessed_output_dir)
 
-    p.starmap(apply_brats_threshold, zip(nifti_pred, [postprocessed_output_dir]*len(nifti_pred), [best_threshold]*len(nifti_pred), [replace_with] * len(nifti_pred)))
+    p.starmap(apply_brats_threshold,
+              zip(nifti_pred, [postprocessed_output_dir] * len(nifti_pred), [best_threshold] * len(nifti_pred),
+                  [replace_with] * len(nifti_pred)))
 
     p.close()
     p.join()
 
-    save_pickle((thresholds, means, best_threshold, all_dc_per_threshold), join(postprocessed_output_dir, "threshold.pkl"))
+    save_pickle((thresholds, means, best_threshold, all_dc_per_threshold),
+                join(postprocessed_output_dir, "threshold.pkl"))
 
 
-def collect_and_prepare(base_dir, num_processes = 12, clean=False):
+def collect_and_prepare(base_dir, num_processes=12, clean=False):
     """
     collect all cv_niftis, compute brats metrics, compute enh tumor thresholds and summarize in csv
     :param base_dir:
@@ -164,7 +171,8 @@ def collect_and_prepare(base_dir, num_processes = 12, clean=False):
             if clean or not isfile(join(o, 'summary.csv')):
                 evaluate_regions(o, gt_dir, regions, num_processes)
             if clean or not isfile(join(o_p, 'threshold.pkl')):
-                determine_brats_postprocessing(o, gt_dir, o_p, num_processes, thresholds=list(np.arange(0, 760, 10)), replace_with=replace_with)
+                determine_brats_postprocessing(o, gt_dir, o_p, num_processes, thresholds=list(np.arange(0, 760, 10)),
+                                               replace_with=replace_with)
             if clean or not isfile(join(o_p, 'summary.csv')):
                 evaluate_regions(o_p, gt_dir, regions, num_processes)
             successful.append(e)
@@ -276,7 +284,8 @@ def collect_and_prepare(base_dir, num_processes = 12, clean=False):
     output_converted = join(base_dir, 'converted_valSet')
 
     for source in ['predVal', 'predVal_PP']:
-        for e in has_val_pred + ['nnUNetTrainerV2BraTSRegions_DA3_BN__nnUNetPlansv2.1_bs5_15fold', 'nnUNetTrainerV2BraTSRegions_DA4_BN__nnUNetPlansv2.1_bs5_15fold']:
+        for e in has_val_pred + ['nnUNetTrainerV2BraTSRegions_DA3_BN__nnUNetPlansv2.1_bs5_15fold',
+                                 'nnUNetTrainerV2BraTSRegions_DA4_BN__nnUNetPlansv2.1_bs5_15fold']:
             expected_source_folder = join(base_dir, source, e)
             if not isdir(expected_source_folder):
                 print(e, 'has no', source)
@@ -436,7 +445,7 @@ def load_csv_for_ranking(csv_file: str):
     return scores
 
 
-def rank_algorithms(data:np.ndarray):
+def rank_algorithms(data: np.ndarray):
     """
     data is (metrics x experiments x cases)
     :param data:
@@ -450,6 +459,7 @@ def rank_algorithms(data:np.ndarray):
     average_rank = np.mean(ranks, 0)
     final_ranks = ss.rankdata(average_rank, 'min')
     return final_ranks, average_rank, ranks
+
 
 def score_and_postprocess_model_based_on_rank_then_aggregate():
     """
@@ -571,7 +581,8 @@ def score_and_postprocess_model_based_on_rank_then_aggregate():
                 if len(files) != expected_num_cases_val:
                     print(e, 'has missing val cases. found: %d expected: %d' % (len(files), expected_num_cases_val))
                 else:
-                    apply_threshold_to_folder(predicted_val, join(pred_val_base, e), best_threshold, replace_with, num_processes)
+                    apply_threshold_to_folder(predicted_val, join(pred_val_base, e), best_threshold, replace_with,
+                                              num_processes)
                     has_val_pred.append(e)
         else:
             print(e, 'not found in ranking')
@@ -585,7 +596,9 @@ def score_and_postprocess_model_based_on_rank_then_aggregate():
     best_avg_rank = average_rank[pp_models[best_idx]]
     best_threshold = int(best.split('___')[-1])
     predicted_val = join(base, 'predVal', 'nnUNetTrainerV2BraTSRegions_DA3_BN__nnUNetPlansv2.1_bs5_15fold')
-    apply_threshold_to_folder(predicted_val, join(pred_val_base, 'nnUNetTrainerV2BraTSRegions_DA3_BN__nnUNetPlansv2.1_bs5_15fold'), best_threshold, replace_with, num_processes)
+    apply_threshold_to_folder(predicted_val,
+                              join(pred_val_base, 'nnUNetTrainerV2BraTSRegions_DA3_BN__nnUNetPlansv2.1_bs5_15fold'),
+                              best_threshold, replace_with, num_processes)
     has_val_pred.append('nnUNetTrainerV2BraTSRegions_DA3_BN__nnUNetPlansv2.1_bs5_15fold')
 
     # apply nnUNetTrainerV2BraTSRegions_DA4_BN__nnUNetPlansv2.1_bs5 to nnUNetTrainerV2BraTSRegions_DA4_BN__nnUNetPlansv2.1_bs5_15fold
@@ -597,7 +610,9 @@ def score_and_postprocess_model_based_on_rank_then_aggregate():
     best_avg_rank = average_rank[pp_models[best_idx]]
     best_threshold = int(best.split('___')[-1])
     predicted_val = join(base, 'predVal', 'nnUNetTrainerV2BraTSRegions_DA4_BN__nnUNetPlansv2.1_bs5_15fold')
-    apply_threshold_to_folder(predicted_val, join(pred_val_base, 'nnUNetTrainerV2BraTSRegions_DA4_BN__nnUNetPlansv2.1_bs5_15fold'), best_threshold, replace_with, num_processes)
+    apply_threshold_to_folder(predicted_val,
+                              join(pred_val_base, 'nnUNetTrainerV2BraTSRegions_DA4_BN__nnUNetPlansv2.1_bs5_15fold'),
+                              best_threshold, replace_with, num_processes)
     has_val_pred.append('nnUNetTrainerV2BraTSRegions_DA4_BN__nnUNetPlansv2.1_bs5_15fold')
 
     # convert valsets
@@ -640,32 +655,33 @@ def score_and_postprocess_model_based_on_rank_then_aggregate():
     for t in np.argsort(final_ranks):
         print(final_ranks[t], average_rank[t], names_valset[t])
 
+
 def load_brats_validation_csv(csv_file):
-    data = np.loadtxt(csv_file,dtype='str',delimiter=',')
-    data = data[1:-5,1:7].astype(float)
+    data = np.loadtxt(csv_file, dtype='str', delimiter=',')
+    data = data[1:-5, 1:7].astype(float)
     return data
+
 
 def my_rank_then_aggregate_on_validation_result(result_dir):
     """
     Similar to the above code but rank on result on brats validation set
     """
     submissions = subdirs(result_dir, join=False)
-    data_for_ranking = np.zeros((6, len(submissions), 219),dtype=np.float32)
+    data_for_ranking = np.zeros((6, len(submissions), 219), dtype=np.float32)
     for idx, sub in enumerate(submissions):
         curr = join(result_dir, sub)
-        validation_score = load_brats_validation_csv(join(curr,'all_scores.csv'))
-        data_for_ranking[:,idx,:] = validation_score.transpose()
-
+        validation_score = load_brats_validation_csv(join(curr, 'all_scores.csv'))
+        data_for_ranking[:, idx, :] = validation_score.transpose()
 
     final_ranks, average_rank, ranks = rank_algorithms(data_for_ranking)
     print(submissions)
     print(final_ranks, average_rank, ranks)
 
+
 def my_evaluate_folder(folder, gt_folder):
     # evaluate arbirtrary folder, good for checking ensemble of validation result
     regions = get_brats_regions()
     evaluate_regions(folder, gt_folder, regions)
-
 
 
 if __name__ == "__main__":
@@ -676,9 +692,9 @@ if __name__ == "__main__":
     """
 
     task_name = "Task500_BraTS2021"
-    downloaded_data_dir = "/RSNA_ASNR_MICCAI_BraTS2021_TrainingData/"
+    downloaded_data_dir = "/Users/patricks/Workspace/uni/LS6/masterarbeit/BraTS2021_data/BraTS2021_raw_train"
     downloaded_data_dir_val = "/RSNA_ASNR_MICCAI_BraTS2021_ValidationData/"
-    result_dir = "/Task500_BraTS2021/"
+    result_dir = "//Users/patricks/Workspace/uni/LS6/masterarbeit/BraTS2021_data/Task500_BraTS2021"
 
     target_base = join(nnUNet_raw_data, task_name)
     target_imagesTr = join(target_base, "imagesTr")
@@ -691,60 +707,59 @@ if __name__ == "__main__":
     maybe_mkdir_p(target_imagesTs)
     maybe_mkdir_p(target_labelsTr)
 
-    # patient_names = []
-    # cur = join(downloaded_data_dir)
-    # for p in subdirs(cur, join=False):
-    #     patdir = join(cur, p)
-    #     patient_name = p
-    #     patient_names.append(patient_name)
-    #     t1 = join(patdir, p + "_t1.nii.gz")
-    #     t1c = join(patdir, p + "_t1ce.nii.gz")
-    #     t2 = join(patdir, p + "_t2.nii.gz")
-    #     flair = join(patdir, p + "_flair.nii.gz")
-    #     seg = join(patdir, p + "_seg.nii.gz")
+    patient_names = []
+    cur = join(downloaded_data_dir)
+    for p in tqdm(subdirs(cur, join=False)):
+        patdir = join(cur, p)
+        patient_name = p
+        patient_names.append(patient_name)
+        t1 = join(patdir, p + "_t1.nii.gz")
+        t1c = join(patdir, p + "_t1ce.nii.gz")
+        t2 = join(patdir, p + "_t2.nii.gz")
+        flair = join(patdir, p + "_flair.nii.gz")
+        seg = join(patdir, p + "_seg.nii.gz")
 
-    #     assert all([
-    #         isfile(t1),
-    #         isfile(t1c),
-    #         isfile(t2),
-    #         isfile(flair),
-    #         isfile(seg)
-    #     ]), "%s" % patient_name
+        assert all([
+            isfile(t1),
+            isfile(t1c),
+            isfile(t2),
+            isfile(flair),
+            isfile(seg)
+        ]), "%s" % patient_name
 
-    #     shutil.copy(t1, join(target_imagesTr, patient_name + "_0000.nii.gz"))
-    #     shutil.copy(t1c, join(target_imagesTr, patient_name + "_0001.nii.gz"))
-    #     shutil.copy(t2, join(target_imagesTr, patient_name + "_0002.nii.gz"))
-    #     shutil.copy(flair, join(target_imagesTr, patient_name + "_0003.nii.gz"))
+        shutil.copy(t1, join(target_imagesTr, patient_name + "_0000.nii.gz"))
+        shutil.copy(t1c, join(target_imagesTr, patient_name + "_0001.nii.gz"))
+        shutil.copy(t2, join(target_imagesTr, patient_name + "_0002.nii.gz"))
+        shutil.copy(flair, join(target_imagesTr, patient_name + "_0003.nii.gz"))
 
-    #     copy_BraTS_segmentation_and_convert_labels(seg, join(target_labelsTr, patient_name + ".nii.gz"))
+        copy_BraTS_segmentation_and_convert_labels(seg, join(target_labelsTr, patient_name + ".nii.gz"))
 
+    json_dict = OrderedDict()
+    json_dict['name'] = "BraTS2021"
+    json_dict['description'] = "nothing"
+    json_dict['tensorImageSize'] = "4D"
+    json_dict['reference'] = "see BraTS2021"
+    json_dict['licence'] = "see BraTS2021 license"
+    json_dict['release'] = "0.0"
+    json_dict['modality'] = {
+        "0": "T1",
+        "1": "T1ce",
+        "2": "T2",
+        "3": "FLAIR"
+    }
+    json_dict['labels'] = {
+        "0": "bg",
+        "1": "ncr",
+        "2": "ed",
+        "3": "et",
+    }
+    json_dict['numTraining'] = len(patient_names)
+    json_dict['numTest'] = 0
+    json_dict['training'] = [{'image': "./imagesTr/%s.nii.gz" % i, "label": "./labelsTr/%s.nii.gz" % i} for i in
+                             patient_names]
+    json_dict['test'] = []
 
-    # json_dict = OrderedDict()
-    # json_dict['name'] = "BraTS2021"
-    # json_dict['description'] = "nothing"
-    # json_dict['tensorImageSize'] = "4D"
-    # json_dict['reference'] = "see BraTS2021"
-    # json_dict['licence'] = "see BraTS2021 license"
-    # json_dict['release'] = "0.0"
-    # json_dict['modality'] = {
-    #     "0": "T1",
-    #     "1": "T1ce",
-    #     "2": "T2",
-    #     "3": "FLAIR"
-    # }
-    # json_dict['labels'] = {
-    #     "0": "bg",
-    #     "1": "ncr",
-    #     "2": "ed",
-    #     "3": "et",
-    # }
-    # json_dict['numTraining'] = len(patient_names)
-    # json_dict['numTest'] = 0
-    # json_dict['training'] = [{'image': "./imagesTr/%s.nii.gz" % i, "label": "./labelsTr/%s.nii.gz" % i} for i in
-    #                          patient_names]
-    # json_dict['test'] = []
-
-    # save_json(json_dict, join(target_base, "dataset.json"))
+    save_json(json_dict, join(target_base, "dataset.json"))
 
     # if downloaded_data_dir_val is not None:
     #     for p in subdirs(downloaded_data_dir_val, join=False):
@@ -754,19 +769,18 @@ if __name__ == "__main__":
     #         t1c = join(patdir, p + "_t1ce.nii.gz")
     #         t2 = join(patdir, p + "_t2.nii.gz")
     #         flair = join(patdir, p + "_flair.nii.gz")
-
+    #
     #         assert all([
     #             isfile(t1),
     #             isfile(t1c),
     #             isfile(t2),
     #             isfile(flair),
     #         ]), "%s" % patient_name
-
+    #
     #         shutil.copy(t1, join(target_imagesVal, patient_name + "_0000.nii.gz"))
     #         shutil.copy(t1c, join(target_imagesVal, patient_name + "_0001.nii.gz"))
     #         shutil.copy(t2, join(target_imagesVal, patient_name + "_0002.nii.gz"))
     #         shutil.copy(flair, join(target_imagesVal, patient_name + "_0003.nii.gz"))
-
 
     # downloaded_data_dir_test = ""
 
@@ -795,7 +809,7 @@ if __name__ == "__main__":
     #  nnUNet_ensemble -f nnUNetTrainerV2BraTSRegions_DA3_BN_BD__nnUNetPlansv2.1_bs5_5fold nnUNetTrainerV2BraTSRegions_DA4_BN_BD__nnUNetPlansv2.1_bs5_5fold nnUNetTrainerV2BraTSRegions_DA4_BN__nnUNetPlansv2.1_bs5_15fold -o ensembled_nnUNetTrainerV2BraTSRegions_DA3_BN_BD__nnUNetPlansv2.1_bs5_5fold__nnUNetTrainerV2BraTSRegions_DA4_BN_BD__nnUNetPlansv2.1_bs5_5fold__nnUNetTrainerV2BraTSRegions_DA4_BN__nnUNetPlansv2.1_bs5_15fold
     # apply_threshold_to_folder(join(result_dir,'BL_largeUNet_GN_ensemble'), join(result_dir,'BL_largeUNet_GN_ensemble_PP200'), 200, 2)
     # convert_labels_back_to_BraTS_2018_2019_convention(join(result_dir,'BL_largeUNet_GN_ensemble_PP200'), join(result_dir,'BL_largeUNet_GN_ensemble_PP200_converted'))
-    #my_rank_then_aggregate_on_validation_result()
+    # my_rank_then_aggregate_on_validation_result()
     my_evaluate_folder('/BL_BL_L_GN_ensemble_fold0/')
 
     # export for publication of weights
