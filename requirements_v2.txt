@@ -59,9 +59,10 @@ six
 sklearn==0.0
 smmap==4.0.0
 subprocess32==3.5.4
-threadpoolctl==2.2.0
+threadpoolctl==3.1.0
 tifffile
 tqdm==4.61.2
 traceback2==1.4.0
 unittest2==1.1.0
 urllib3==1.26.6
+monai
