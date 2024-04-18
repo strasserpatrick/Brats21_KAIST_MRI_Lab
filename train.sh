@@ -2,7 +2,7 @@
 source ~/env_file
 
 eval "$(conda shell.bash hook)"
-conda activate extended-nnunet 
+conda activate nnunet
 
 
 echo "starting training with fold $fold"
