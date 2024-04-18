@@ -50,8 +50,7 @@ class nnUNetTrainerV2(nnUNetTrainer):
         self.deep_supervision_scales = None
         self.ds_loss_weights = None
 
-        self.pin_memory = False
-        print(f"using pin_memory={self.pin_memory}")
+        self.pin_memory = True
 
     def initialize(self, training=True, force_load_plans=False):
         """
