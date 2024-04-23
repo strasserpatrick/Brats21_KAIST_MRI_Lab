@@ -4,21 +4,23 @@ from pathlib import Path
 import nibabel as nib
 from typing import List
 import concurrent.futures
+from tqdm import tqdm
 
 # %%
-
 brats2021_label_path: Path = Path(
-    "/home/stud/strasser/data/nnUNet_raw_data/Task500_BraTS2021/labelsTr"
+    "/home/stud/strasser/archive/brats2021/"
 )
 brats2019_train_path: Path = Path(
     "/home/stud/strasser/archive/brats2019/MICCAI_BraTS_2019_Data_Training"
 )
 
-# validation data holds no segmentation labels
-# brats2018_validation_path: Path = Path('/home/stud/strasser/archive/brats2018/MICCAI_BraTS_2018_Data_Validation')
-
 # %%
-brats2021_label_nii_gz_file_paths: List[Path] = list(brats2021_label_path.glob("*"))
+brats2021_label_nii_gz_file_paths: List[Path] = []
+
+for folder in tqdm(list(brats2021_label_path.glob("*"))):
+    brats2021_label_nii_gz_file_paths += list(folder.glob("*t2.nii.gz"))
+
+
 brats2021_label_nii_gz_file_paths[:10]
 
 # %%
@@ -29,13 +31,13 @@ hgg_paths = [
     folder
     for instance in brats_2019_hgg.iterdir()
     if instance.is_dir()
-    for folder in list(instance.glob("*_seg.nii"))
+    for folder in list(instance.glob("*t2.nii"))
 ]
 lgg_paths = [
     folder
     for instance in brats_2019_lgg.iterdir()
     if instance.is_dir()
-    for folder in list(instance.glob("*_seg.nii"))
+    for folder in list(instance.glob("*t2.nii"))
 ]
 
 brats2019_segmentation_mask_file_paths: List[Path] = hgg_paths + lgg_paths
@@ -77,7 +79,6 @@ print(
     * len(brats2021_label_nii_gz_file_paths),
 )
 
-
 # %%
 def check_segmentation_equality(brats2019_fp, brats2021_nii_gz_path):
     brats2019_segmentation_nparr = nib.load(brats2019_fp).get_fdata()
@@ -113,3 +114,5 @@ with concurrent.futures.ThreadPoolExecutor(max_workers=NUM_WORKERS) as executor:
         print(f"checked {done} / {total}", end="\r")
 
 print("no overlap")
+
+

@@ -24,13 +24,13 @@ hgg_paths = [
     folder
     for instance in brats_2019_hgg.iterdir()
     if instance.is_dir()
-    for folder in list(instance.glob("*_seg.nii"))
+    for folder in list(instance.glob("*_t1.nii"))
 ]
 lgg_paths = [
     folder
     for instance in brats_2019_lgg.iterdir()
     if instance.is_dir()
-    for folder in list(instance.glob("*_seg.nii"))
+    for folder in list(instance.glob("*_t1.nii"))
 ]
 
 brats2019_segmentation_mask_file_paths: List[Path] = hgg_paths + lgg_paths
@@ -99,7 +99,7 @@ def check_segmentation_equality(brats2018_fp, brats2019_fp):
 
     if np.array_equal(brats2018_segmentation_nparr, brats2019_segmentation_nparr):
         raise ValueError(
-            f"Duplicate in segmentation mask for file {brats2018_segmentation_nparr}"
+            f"Duplicate for t1 file {brats2018_fp}"
         )
 
 
